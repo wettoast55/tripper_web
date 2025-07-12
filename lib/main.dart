@@ -49,6 +49,28 @@ class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0; //temp counter
   int _selectedIndex = 0; //tracks tab selected
 
+  // Define pages for each tab
+  List<Widget> get _pages => [
+    Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text("item 1"),
+        Text("item 2"),
+        Text("item 3"),
+        Text('$_counter'),
+      ],
+    ),
+    const ChatView(), // chat widget!
+  ];
+
+  // Function to handle tab changes
+  @override
+  void _onTabTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
   // function to tell framework something changed and needs to update/rerun
   void _incrementCounter() {
     setState(() {
@@ -72,61 +94,71 @@ class _MyHomePageState extends State<MyHomePage> {
         title: Text(widget.title),
       ),
 
-      ////////////////
-        // Center is a layout widget. It takes a single child and positions it in the 
-      //middle of the parent.
-      body: Column(
-        mainAxisAlignment:MainAxisAlignment.center, 
-        children: [
-          
-          Text("item 1"),
-          Text("item 2"),
-          Text("item 3"),
-          Text('$_counter'),
-          //ChatView(), //cannot be in lcolumn or row
+      body:Center(child: _pages[_selectedIndex]), // Display the selected page
 
+      // bottom navigation bar with two tabs
+      // The BottomNavigationBar widget is used to create a bottom navigation bar.
+      bottomNavigationBar: BottomNavigationBar(
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat),
+            label: 'Chat',
+          ),
         ],
+        currentIndex: _selectedIndex,
+        onTap: _onTabTapped, // Handle tab changes
       ),
+
+      //function for floating action button
+      // This button will only appear on the first tab (Home)
+      floatingActionButton: _selectedIndex == 0
+          ? FloatingActionButton(
+              onPressed: () {
+                print("Home tab button tapped");
+                print(_counter);
+                _incrementCounter(); // Increment the counter when the FAB is pressed
+              },
+              tooltip: 'Action',
+              child: const Icon(Icons.add),
+            )
+          : null,
+    );
+
+    
+      ////////////////
+      //   // Center is a layout widget. It takes a single child and positions it in the 
+      // //middle of the parent.
+      // body: Column(
+      //   mainAxisAlignment:MainAxisAlignment.center, 
+      //   children: [
+          
+      //     Text("item 1"),
+      //     Text("item 2"),
+      //     Text("item 3"),
+      //     Text('$_counter'),
+      //     //ChatView(), //cannot be in lcolumn or row
+
+      //   ],
+      // ),
 
       ////////////
             
 
-      // //////////////////////////////////
-      // // Center is a layout widget. It takes a single child and positions it in the 
-      // //middle of the parent.
-      // body: Center(
-
-      //   // Column is also a layout widget. It takes a list of children and
-      //     // arranges them vertically. By default, it sizes itself to fit its
-      //     // children horizontally, and tries to be as tall as its parent.
-      //   child: Column(
-      //     // action in the IDE, or press "p" in the console), to see the wireframe for each widget.
-          
-      //     // center children vertically (from top down, start-center-end)
-      //     mainAxisAlignment: MainAxisAlignment.center,
-
-      //     // create widget with text and counter
-      //     children: <Widget>[
-      //       const Text('You have pushed the button this many times:'),
-      //       Text(
-      //         '$_counter',
-      //         style: Theme.of(context).textTheme.headlineMedium,
-      //       ),
-      //     ],
-      //   ),
-      // ),
-
       ///////////////////////////// 
     
 
-      // button to increment count
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), 
+      // // button to increment count
+      // floatingActionButton: FloatingActionButton(
+      //   onPressed: _incrementCounter,
+      //   tooltip: 'Increment',
+      //   child: const Icon(Icons.add),
+      // ), 
 
-    );
+    
   }
 }
 
