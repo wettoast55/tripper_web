@@ -13,10 +13,15 @@ import 'widgets/chat_view.dart';
 //   runApp(const MyApp());
 // }
 void main() async {
+
+  // Initialize Firebase
+  // This is required to ensure that Firebase is initialized before the app runs.
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Run the app
   runApp(const MyApp());
 }
 // init browser app
@@ -92,7 +97,6 @@ class _MyHomePageState extends State<MyHomePage> {
   ];
 
   // Function to handle tab changes
-  @override
   void _onTabTapped(int index) {
     setState(() {
       _selectedIndex = index;
