@@ -20,9 +20,11 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  print('Firebase initialized successfully');
 
   // Run the app
   runApp(const MyApp());
+  print('App started successfully');
 }
 // init browser app
 class MyApp extends StatelessWidget {
@@ -68,7 +70,7 @@ class _MyHomePageState extends State<MyHomePage> {
     Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text("test 1"),
+        Text("test 1, homepage with showcase"),
         Text('$_counter'),
       ],
     ),
@@ -77,21 +79,21 @@ class _MyHomePageState extends State<MyHomePage> {
     Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text("page 3"),
+        Text("page 3 page for flights/hotels booking"),
       ],
     ),
 
     Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text("page 4"),
+        Text("page 4 for attractions/activities booking"),
       ],
     ),
 
     Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text("page 5"),
+        Text("page 5 for inviting friends to join your trip"),
       ],
     ),
   ];
@@ -140,8 +142,8 @@ class _MyHomePageState extends State<MyHomePage> {
         items: const [
 
           BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
+            icon: Icon(Icons.local_fire_department),
+            label: 'Trending',
           ),
 
           BottomNavigationBarItem(
@@ -150,18 +152,18 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
 
           BottomNavigationBarItem(
-            icon: Icon(Icons.flight),
-            label: 'Flights',
-          ),
-
-          BottomNavigationBarItem(
-            icon: Icon(Icons.hotel),
-            label: 'Hotels',
+            icon: Icon(Icons.flight_takeoff),
+            label: 'Flights & Hotels',
           ),
 
           BottomNavigationBarItem(
             icon: Icon(Icons.nordic_walking),
             label: 'Activities',
+          ),
+
+          BottomNavigationBarItem(
+            icon: Icon(Icons.insert_invitation),
+            label: 'Invite Friends',
           ),
         ],
         currentIndex: _selectedIndex,
