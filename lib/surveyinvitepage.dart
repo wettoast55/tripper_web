@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // for storing survey data
 
 class SurveyInviteDialog extends StatefulWidget {
   const SurveyInviteDialog({super.key});
@@ -13,35 +14,53 @@ class _SurveyInviteDialogState extends State<SurveyInviteDialog> {
   bool _loading = false;
   String? _message;
 
-  Future<void> _sendSurveyInvite() async {
-    final email = _emailCtrl.text.trim();
-    if (email.isEmpty) return;
+Future<void> _sendSurveyInvite() async {
+  final email = _emailCtrl.text.trim();
+  final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
 
+  if (email.isEmpty || !emailRegex.hasMatch(email)) {
     setState(() {
-      _loading = true;
-      _message = null;
+      _message = 'Please enter a valid email address.';
+    });
+    return;
+  }
+
+  final token = DateTime.now().millisecondsSinceEpoch.toString();
+
+  setState(() {
+    _loading = true;
+    _message = null;
+  });
+
+  try {
+    final sendSurvey = FirebaseFunctions.instance.httpsCallable('sendSurveyEmail');
+    
+    await sendSurvey.call({
+      'email': email,
+      'token': token,
     });
 
-    try {
-      final sendSurvey = FirebaseFunctions.instance.httpsCallable('sendSurveyEmail');
-      final token = DateTime.now().millisecondsSinceEpoch.toString();
+    // Store the survey invite in Firestore
+    await FirebaseFirestore.instance.collection('surveys').doc(token).set({
+      'email': email,
+      'token': token,
+      'sentAt': Timestamp.now(),
+      'completed': false,
+    });
 
-      await sendSurvey.call({
-        'email': email,
-        'token': token,
-      });
-
-      setState(() {
-        _message = 'Survey invite sent to $email!';
-      });
-    } catch (e) {
-      setState(() {
-        _message = 'Failed to send: $e';
-      });
-    } finally {
-      setState(() => _loading = false);
-    }
+    setState(() {
+      _message = 'Survey invite sent to $email!';
+      _emailCtrl.clear();
+    });
+  } catch (e) {
+    setState(() {
+      _message = 'Failed to send: $e';
+    });
+  } finally {
+    setState(() => _loading = false);
   }
+}
+
 
   @override
   Widget build(BuildContext context) {

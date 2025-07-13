@@ -1,48 +1,52 @@
-/**
- * Import function triggers from their respective submodules:
- * const {onCall} = require("firebase-functions/v2/https");
- * const {onDocumentWritten} = require("firebase-functions/v2/firestore");
-  */
+const functions = require("firebase-functions");
+const nodemailer = require("nodemailer");
 
-// const {setGlobalOptions} = require("firebase-functions");
-// const {onRequest} = require("firebase-functions/https");
-// const logger = require("firebase-functions/logger");
+const gmailEmail = functions.config().email.user;
+const gmailPassword = functions.config().email.pass;
 
-const functions = require('firebase-functions');
-const nodemailer = require('nodemailer');
-
-// prevents "Too many instances" error
-// This is useful when you have multiple functions that can be triggered simultaneously
-setGlobalOptions({ maxInstances: 10 });
-
-// configure transporter
+// Configure transporter
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  service: "gmail",
   auth: {
-    user: 'your@gmail.com',
-    pass: 'your-app-password',
+    user: gmailEmail,
+    pass: gmailPassword,
   },
 });
 
-// Function to send survey email
-// This function is triggered when a user submits their trip preferences
-// It sends an email to the user with a link to complete their survey
-// The link includes a token that identifies the user and their trip preferences
-// The email is sent using nodemailer with Gmail as the service
+// Callable function to send survey email
 exports.sendSurveyEmail = functions.https.onCall(async (data, context) => {
-  const { email, token } = data;
-  const surveyUrl = `https://yourapp.com/survey?id=${token}`;
+  const {email, token} = data;
 
-  await transporter.sendMail({
-    from: '"TripCliques" <your@gmail.com>',
+  if (!email || !token) {
+    throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing email or token.",
+    );
+  }
+
+  const surveyLink = `https://yourapp.com/survey?token=${token}`;
+  const mailOptions = {
+    from: `"TripCliques" <${gmailEmail}>`,
     to: email,
-    subject: 'Fill out your TripCliques survey!',
+    subject: "You're invited to join a trip!",
     html: `
-      <p>Click to complete your trip preferences:</p>
-      <a href="${surveyUrl}">Complete Survey</a>
+      <p>Hi there! 🎒</p>
+      <p>Your friend invited you to help plan a trip.
+      Please fill out this quick survey to share your preferences:</p>
+      <p><a href="${surveyLink}">Click here to complete your survey</a></p>
+      <p>Thanks,<br/>The TripCliques Team</p>
     `,
-  });
+  };
 
-  return { success: true };
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log("Email sent: ", info.response);
+    return {success: true};
+  } catch (error) {
+    console.error("Error sending email:", error);
+    throw new functions.https.HttpsError(
+        "internal",
+        "Unable to send email",
+    );
+  }
 });
-
