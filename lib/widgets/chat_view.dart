@@ -10,6 +10,8 @@ class ChatView extends StatefulWidget {
 }
 
 class _ChatViewState extends State<ChatView> {
+  final _focusNode = FocusNode(); // FocusNode to manage focus on the text field
+
   final _msgCtrl = TextEditingController();
 
   // called when the widget is first created
@@ -109,6 +111,10 @@ class _ChatViewState extends State<ChatView> {
 
     // Clear the message input field after sending
     _msgCtrl.clear();
+
+    //request focus on the text field again
+    // This is useful keep typing without clicking on the text field again
+    _focusNode.requestFocus(); 
   }
 
   // This method builds the UI for the chat view, including the message list and input field
@@ -194,18 +200,23 @@ class _ChatViewState extends State<ChatView> {
                 Expanded(
                   child: TextField(
                     controller: _msgCtrl,
+
+                    // Attach the focus node to textfield so messages
+                    // can be sent by pressing enter key constantly
+                    focusNode: _focusNode,
+
+                    // Add a prompt for the user to enter a message
                     decoration: const InputDecoration(
                       labelText: 'Send a message',
                       border: OutlineInputBorder(),
                     ),
 
-                    // enter key to send message
+                    // enter key to send message ****
                     onSubmitted: (text) {
                       if (text.isNotEmpty) {
                         _send();
                       }
                     },
-                    
                   ),
                 ),
                 const SizedBox(width: 8),
