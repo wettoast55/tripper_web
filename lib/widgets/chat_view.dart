@@ -67,7 +67,7 @@ class _ChatViewState extends State<ChatView> {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('chats')
-                  // .orderBy('ts', descending: true)
+                  .orderBy('ts', descending: true)
                   //testing without ordering if is broken
                   .snapshots(),
               builder: (ctx, snapshot) {

@@ -8,6 +8,8 @@ import 'package:firebase_core/firebase_core.dart';
 // after your imports
 import 'widgets/chat_view.dart';
 
+import 'package:firebase_auth/firebase_auth.dart'; // for anonymous auth/login
+
 //init app, start
 // void main() {
 //   runApp(const MyApp());
@@ -22,10 +24,27 @@ void main() async {
   );
   print('Firebase initialized successfully');
 
+  // Ensure the user is logged in anon or not
+  _ensureLoggedIn();
+  print('User logged in successfully');
+
   // Run the app
   runApp(const MyApp());
   print('App started successfully');
 }
+
+// This function checks if the user is logged in, and if not, signs them in anonymously
+void _ensureLoggedIn() async {
+  final auth = FirebaseAuth.instance;
+
+  if (auth.currentUser == null) {
+    await auth.signInAnonymously();
+    print('[Auth] Signed in anonymously as ${auth.currentUser?.uid}');
+  } else {
+    print('[Auth] Already signed in: ${auth.currentUser?.uid}');
+  }
+}
+
 // init browser app
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -104,7 +123,7 @@ class _MyHomePageState extends State<MyHomePage> {
       _selectedIndex = index;
     });
   }
-
+  
   // function to tell framework something changed and needs to update/rerun
   void _incrementCounter() {
     setState(() {
