@@ -143,17 +143,8 @@ class _MyHomePageState extends State<MyHomePage> {
       _selectedIndex = index;
     });
   }
-  
-  // function to tell framework something changed and needs to update/rerun
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
-      print(_counter);
-    });
-  }
 
  // This method is rerun every time setState is called, for instance as done   
- // by the _incrementCounter method above.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -220,8 +211,6 @@ class _MyHomePageState extends State<MyHomePage> {
           : null,
     );
 
-  
-    
     
       ////////////////
       //   // Center is a layout widget. It takes a single child and positions it in the 
