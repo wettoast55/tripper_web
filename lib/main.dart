@@ -100,7 +100,7 @@ class _MyHomePageState extends State<MyHomePage> {
     Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text("test 1, homepage with showcase"),
+        Text("page 1 (home)"),
       ],
     ),
 /*
@@ -111,7 +111,7 @@ class _MyHomePageState extends State<MyHomePage> {
     Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text("page 2 page g"),
+        Text("page 2 (find trips)"),
 
       ],
     ),    
@@ -124,7 +124,7 @@ class _MyHomePageState extends State<MyHomePage> {
     Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text("page 4"),
+        Text("page 4 (History/Saved Trips)"),
       ],
     ),
 
@@ -180,7 +180,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
           BottomNavigationBarItem(
             icon: Icon(Icons.star),
-            label: 'get started', /// move the plus button from home screen to here later, that will be invite friends
+            label: 'find trips', /// move the plus button from home screen to here later, that will be invite friends
           ),
 
           BottomNavigationBarItem(
