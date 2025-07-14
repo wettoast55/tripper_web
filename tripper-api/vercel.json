@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "builds": [
-    { "src": "api/send-survey.js", "use": "@vercel/node" }
-  ],
-  "routes": [
-    { "src": "/api/send-survey", "dest": "api/send-survey.js" }
-  ]
-}
