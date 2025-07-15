@@ -7,8 +7,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 class MyGroupPage extends StatefulWidget {
   final bool isInGroup;
   final VoidCallback onLeaveGroup;
+  final Future<void> Function()? onGroupStatusChanged;
 
-  const MyGroupPage({super.key, required this.isInGroup, required this.onLeaveGroup});
+  const MyGroupPage({
+    super.key,
+    required this.isInGroup,
+    required this.onLeaveGroup,
+    this.onGroupStatusChanged,
+  });
 
   @override
   State<MyGroupPage> createState() => _MyGroupPageState();
@@ -29,7 +35,7 @@ class _MyGroupPageState extends State<MyGroupPage> {
 
   Future<void> _loadUserState() async {
     final prefs = await SharedPreferences.getInstance();
-    userId = prefs.getString('userId') ?? 'user_\${DateTime.now().millisecondsSinceEpoch % 1000000}';
+    userId = prefs.getString('userId') ?? 'user_${DateTime.now().millisecondsSinceEpoch % 1000000}';
     await prefs.setString('userId', userId!);
     groupId = prefs.getString('groupId');
     groupPin = prefs.getString('groupPin');
@@ -110,6 +116,11 @@ class _MyGroupPageState extends State<MyGroupPage> {
     });
 
     setState(() {});
+
+    if (widget.onGroupStatusChanged != null) {
+      await widget.onGroupStatusChanged!();
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Group created successfully!')),
     );
@@ -168,21 +179,25 @@ class _MyGroupPageState extends State<MyGroupPage> {
       });
     }
 
+    setState(() {});
+
+    if (widget.onGroupStatusChanged != null) {
+      await widget.onGroupStatusChanged!();
+    }
+
     if (!auto) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Joined group successfully!')),
       );
     }
-
-    setState(() {});
   }
 
   void copyInviteLink() {
     final baseUrl = html.window.location.origin;
-    final link = '\$baseUrl?pin=\$groupPin';
+    final link = '$baseUrl?pin=$groupPin';
     html.window.navigator.clipboard?.writeText(link);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Invite link copied: \$link')),
+      SnackBar(content: Text('Invite link copied: $link')),
     );
   }
 
@@ -223,7 +238,7 @@ class _MyGroupPageState extends State<MyGroupPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("Group PIN: \$groupPin", style: const TextStyle(fontSize: 16)),
+                  Text("Group PIN: $groupPin", style: const TextStyle(fontSize: 16)),
                   Row(
                     children: [
                       IconButton(icon: const Icon(Icons.link), tooltip: "Copy Invite Link", onPressed: copyInviteLink),
@@ -232,7 +247,8 @@ class _MyGroupPageState extends State<MyGroupPage> {
                   )
                 ],
               ),
-            if (groupId != null) ...[
+            if (widget.isInGroup && groupId != null) ...[
+              const SizedBox(height: 24),
               const Text("Group Members", style: TextStyle(fontWeight: FontWeight.bold)),
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance.collection('groups').doc(groupId).collection('members').snapshots(),
@@ -249,7 +265,7 @@ class _MyGroupPageState extends State<MyGroupPage> {
                       return ListTile(
                         leading: const Icon(Icons.person),
                         title: Text(nickname),
-                        subtitle: Text("Status: \$status"),
+                        subtitle: Text("Status: $status"),
                         trailing: isSelf
                             ? IconButton(
                                 icon: const Icon(Icons.edit),
@@ -273,9 +289,7 @@ class _MyGroupPageState extends State<MyGroupPage> {
                 },
               ),
               const SizedBox(height: 24),
-            ],
-            const Text("Survey Status", style: TextStyle(fontWeight: FontWeight.bold)),
-            if (groupId != null)
+              const Text("Survey Status", style: TextStyle(fontWeight: FontWeight.bold)),
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance.collection('surveys').where('groupId', isEqualTo: groupId).snapshots(),
                 builder: (context, snapshot) {
@@ -304,7 +318,7 @@ class _MyGroupPageState extends State<MyGroupPage> {
                             children: [
                               Text(email, style: const TextStyle(fontWeight: FontWeight.bold)),
                               const SizedBox(height: 4),
-                              Text("Status: \$status", style: TextStyle(color: status == 'Completed' ? Colors.green : Colors.orange)),
+                              Text("Status: $status", style: TextStyle(color: status == 'Completed' ? Colors.green : Colors.orange)),
                               if (activities.isNotEmpty) ...[
                                 const SizedBox(height: 8),
                                 const Text("Selected Activities:"),
@@ -321,6 +335,7 @@ class _MyGroupPageState extends State<MyGroupPage> {
                   );
                 },
               ),
+            ],
           ],
         ),
       ),
