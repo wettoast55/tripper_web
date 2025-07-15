@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
 import 'dart:html' as html;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tripper_web/surveypage.dart';
 
 class MyGroupPage extends StatefulWidget {
   final bool isInGroup;
@@ -116,7 +117,6 @@ class _MyGroupPageState extends State<MyGroupPage> {
     });
 
     setState(() {});
-
     if (widget.onGroupStatusChanged != null) {
       await widget.onGroupStatusChanged!();
     }
@@ -180,7 +180,6 @@ class _MyGroupPageState extends State<MyGroupPage> {
     }
 
     setState(() {});
-
     if (widget.onGroupStatusChanged != null) {
       await widget.onGroupStatusChanged!();
     }
@@ -190,6 +189,16 @@ class _MyGroupPageState extends State<MyGroupPage> {
         const SnackBar(content: Text('Joined group successfully!')),
       );
     }
+  }
+
+  Future<bool> _isSurveyCompleted() async {
+    if (groupId == null || userId == null) return false;
+    final snapshot = await FirebaseFirestore.instance
+        .collection('surveys')
+        .where('groupId', isEqualTo: groupId)
+        .where('userId', isEqualTo: userId)
+        .get();
+    return snapshot.docs.isNotEmpty;
   }
 
   void copyInviteLink() {
@@ -262,27 +271,63 @@ class _MyGroupPageState extends State<MyGroupPage> {
                       final status = data['status'] ?? 'unknown';
                       final isCreator = userId == creatorId;
                       final isSelf = data['uid'] == userId;
-                      return ListTile(
-                        leading: const Icon(Icons.person),
-                        title: Text(nickname),
-                        subtitle: Text("Status: $status"),
-                        trailing: isSelf
-                            ? IconButton(
-                                icon: const Icon(Icons.edit),
-                                tooltip: 'Edit nickname',
-                                onPressed: () => _editNickname(doc.id, nickname),
-                              )
-                            : isCreator
-                                ? PopupMenuButton<String>(
-                                    onSelected: (value) => updateMemberStatus(doc.id, value),
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(value: 'invited', child: Text('Invited')),
-                                      PopupMenuItem(value: 'joined', child: Text('Joined')),
-                                      PopupMenuItem(value: 'declined', child: Text('Declined')),
+                      return FutureBuilder<bool>(
+                        future: isSelf ? _isSurveyCompleted() : Future.value(true),
+                        builder: (context, surveySnapshot) {
+                          final surveyDone = surveySnapshot.data ?? false;
+                          return ListTile(
+                            leading: const Icon(Icons.person),
+                            title: Text(nickname),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Status: $status"),
+                                Text("Survey: ${surveyDone ? 'Completed' : 'Not Completed'}"),
+                              ],
+                            ),
+                            trailing: isSelf
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: Icon(surveyDone ? Icons.replay_circle_filled_rounded : Icons.edit_document),
+                                        tooltip: surveyDone ? "Edit Survey" : "Take Survey",
+                                        onPressed: () async {
+                                          await showDialog(
+                                            context: context,
+                                            builder: (context) => const SurveyFormPage(),
+                                          );
+                                          Navigator.of(context, rootNavigator: true).pop();
+                                          setState(() {});
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                surveyDone ? 'Survey updated!' : 'Survey completed!',
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.edit),
+                                        tooltip: 'Edit nickname',
+                                        onPressed: () => _editNickname(doc.id, nickname),
+                                      ),
                                     ],
-                                    icon: const Icon(Icons.edit),
                                   )
-                                : null,
+                                : isCreator
+                                    ? PopupMenuButton<String>(
+                                        onSelected: (value) => updateMemberStatus(doc.id, value),
+                                        itemBuilder: (_) => const [
+                                          PopupMenuItem(value: 'invited', child: Text('Invited')),
+                                          PopupMenuItem(value: 'joined', child: Text('Joined')),
+                                          PopupMenuItem(value: 'declined', child: Text('Declined')),
+                                        ],
+                                        icon: const Icon(Icons.edit),
+                                      )
+                                    : null,
+                          );
+                        },
                       );
                     }).toList(),
                   );
@@ -306,9 +351,9 @@ class _MyGroupPageState extends State<MyGroupPage> {
                     itemCount: docs.length,
                     itemBuilder: (context, index) {
                       final data = docs[index].data() as Map<String, dynamic>;
-                      final email = data['email'] ?? 'Unknown';
                       final status = data['completed'] == true ? 'Completed' : 'Pending';
                       final activities = data['activities'] as List<dynamic>? ?? [];
+                      final nickname = data['nickname'] ?? 'Guest';
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 8.0),
                         child: Padding(
@@ -316,7 +361,7 @@ class _MyGroupPageState extends State<MyGroupPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(email, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              Text(nickname, style: const TextStyle(fontWeight: FontWeight.bold)),
                               const SizedBox(height: 4),
                               Text("Status: $status", style: TextStyle(color: status == 'Completed' ? Colors.green : Colors.orange)),
                               if (activities.isNotEmpty) ...[
