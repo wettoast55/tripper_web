@@ -10,7 +10,6 @@ class SurveyFormPage extends StatefulWidget {
 }
 
 class _SurveyFormPageState extends State<SurveyFormPage> {
-  final TextEditingController emailController = TextEditingController();
   final List<String> allActivities = ['Hiking', 'Museum', 'Beach', 'Food Tour'];
   final Set<String> selectedActivities = {};
 
@@ -23,7 +22,6 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
     loadSession();
   }
 
-  /// Load userId and groupId from SharedPreferences
   Future<void> loadSession() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -32,18 +30,15 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
     });
   }
 
-  /// Submit survey response to Firestore
   Future<void> submitSurvey() async {
-    final email = emailController.text.trim();
-    if (email.isEmpty || groupId == null || userId == null) {
+    if (groupId == null || userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all required fields.')),
+        const SnackBar(content: Text('Missing group or user information.')),
       );
       return;
     }
 
     await FirebaseFirestore.instance.collection('surveys').add({
-      'email': email,
       'completed': true,
       'activities': selectedActivities.toList(),
       'groupId': groupId,
@@ -51,13 +46,13 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
       'timestamp': Timestamp.now(),
     });
 
+    // Show success message before closing
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Survey submitted!')),
     );
 
-    emailController.clear();
-    selectedActivities.clear();
-    setState(() {});
+    // Close the page cleanly
+    Navigator.of(context).pop();
   }
 
   @override
@@ -69,14 +64,6 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Your Email", style: TextStyle(fontWeight: FontWeight.bold)),
-            TextField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(hintText: "Enter your email"),
-            ),
-            const SizedBox(height: 20),
-
             const Text("Select Activities", style: TextStyle(fontWeight: FontWeight.bold)),
             Wrap(
               spacing: 8,

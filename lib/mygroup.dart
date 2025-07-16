@@ -292,21 +292,27 @@ class _MyGroupPageState extends State<MyGroupPage> {
                                       IconButton(
                                         icon: Icon(surveyDone ? Icons.replay_circle_filled_rounded : Icons.edit_document),
                                         tooltip: surveyDone ? "Edit Survey" : "Take Survey",
-                                        onPressed: () async {
-                                          await showDialog(
-                                            context: context,
-                                            builder: (context) => const SurveyFormPage(),
-                                          );
-                                          Navigator.of(context, rootNavigator: true).pop();
-                                          setState(() {});
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                surveyDone ? 'Survey updated!' : 'Survey completed!',
-                                              ),
-                                            ),
-                                          );
-                                        },
+                                          onPressed: () {
+                                            Navigator.of(context)
+                                                .push(
+                                                  MaterialPageRoute(
+                                                    builder: (context) => const SurveyFormPage(),
+                                                  ),
+                                                )
+                                                .then((_) {
+                                              if (mounted) {
+                                                setState(() {});
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      surveyDone ? 'Survey updated!' : 'Survey completed!',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            });
+                                          },
+
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.edit),
