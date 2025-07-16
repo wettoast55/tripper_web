@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'package:tripper_web/mygroup.dart';
 import 'package:tripper_web/surveypage.dart';
+import 'package:tripper_web/findtrips.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,12 +71,15 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: const MyHomePage(title: 'TripCliques Home Page'),
+
+      // link routes to other pages
       routes: {
         '/survey': (context) => const SurveyFormPage(),
         '/mygroup': (context) => MyGroupPage(
               isInGroup: false,
               onLeaveGroup: () {},
             ),
+        '/findtrips': (context) => const FindTripsPage(),
       },
     );
   }
@@ -141,10 +145,9 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [Text("page 1 (home/discover)")],
         ),
-        Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [Text("page 2 (find trips)")],
-        ),
+
+        FindTripsPage(),
+        
         // ✅ Always show MyGroupPage so it can handle all logic itself
         MyGroupPage(
           isInGroup: groupId != null,
@@ -206,10 +209,13 @@ class _MyHomePageState extends State<MyHomePage> {
             icon: Icon(Icons.local_fire_department),
             label: 'discover/popular',
           ),
+
+
           BottomNavigationBarItem(
             icon: Icon(Icons.star),
             label: 'find trips',
           ),
+
           BottomNavigationBarItem(
             icon: Icon(Icons.group),
             label: 'my group',
