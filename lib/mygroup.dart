@@ -80,6 +80,36 @@ class _MyGroupPageState extends State<MyGroupPage> {
     }
   }
 
+  Future<void> _editGroupName() async {
+    final controller = TextEditingController();
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Set Group Name"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: "Group Name"),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text("Save"))
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && groupId != null) {
+      await FirebaseFirestore.instance
+          .collection('groups')
+          .doc(groupId)
+          .update({'name': newName});
+
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Group name updated!')),
+      );
+    }
+  }
+
   Future<void> createGroup() async {
     if (widget.isInGroup) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -98,6 +128,7 @@ class _MyGroupPageState extends State<MyGroupPage> {
       'pin': pin,
       'createdAt': Timestamp.now(),
       'creatorId': userId,
+      'name': 'Unnamed Group',
     });
 
     groupId = doc.id;
@@ -223,7 +254,78 @@ class _MyGroupPageState extends State<MyGroupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("My Group")),
+      appBar: AppBar(
+
+        // Display group name and survey statuses in appbar up top
+        title: widget.isInGroup && groupId != null
+            ? StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance.collection('groups').doc(groupId).snapshots(),
+                builder: (context, groupSnapshot) {
+                  if (!groupSnapshot.hasData) {
+                    return const Text("My Group");
+                  }
+                  final data = groupSnapshot.data!.data() as Map<String, dynamic>;
+                  final groupName = (data['name'] ?? 'Unnamed Group') as String;
+                  final isCreator = userId == creatorId;
+
+                  return Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          groupName,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isCreator)
+                        IconButton(
+                          icon: const Icon(Icons.edit, size: 18),
+                          tooltip: 'Edit Group Name',
+                          onPressed: _editGroupName,
+                        ),
+                      const SizedBox(width: 8),
+                      // This nested StreamBuilder gets survey and member counts
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('groups')
+                            .doc(groupId)
+                            .collection('members')
+                            .snapshots(),
+                        builder: (context, membersSnapshot) {
+                          if (!membersSnapshot.hasData) {
+                            return const SizedBox.shrink();
+                          }
+                          final totalUsers = membersSnapshot.data!.docs.length;
+
+                          return StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('surveys')
+                                .where('groupId', isEqualTo: groupId)
+                                .snapshots(),
+                            builder: (context, surveysSnapshot) {
+                              if (!surveysSnapshot.hasData) {
+                                return const SizedBox.shrink();
+                              }
+                              final completedSurveys = surveysSnapshot.data!.docs.length;
+
+                              return Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Text(
+                                  "📝 $completedSurveys/$totalUsers",
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  );
+                },
+              )
+            : const Text("My Group"),
+      ),
+
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -259,133 +361,158 @@ class _MyGroupPageState extends State<MyGroupPage> {
             if (widget.isInGroup && groupId != null) ...[
               const SizedBox(height: 24),
               const Text("Group Members", style: TextStyle(fontWeight: FontWeight.bold)),
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('groups').doc(groupId).collection('members').snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const CircularProgressIndicator();
-                  final docs = snapshot.data!.docs;
-                  return Column(
-                    children: docs.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      final nickname = data['nickname'] ?? 'Guest';
-                      final status = data['status'] ?? 'unknown';
-                      final isCreator = userId == creatorId;
-                      final isSelf = data['uid'] == userId;
-                      return FutureBuilder<bool>(
-                        future: isSelf ? _isSurveyCompleted() : Future.value(true),
-                        builder: (context, surveySnapshot) {
-                          final surveyDone = surveySnapshot.data ?? false;
-                          return ListTile(
-                            leading: const Icon(Icons.person),
-                            title: Text(nickname),
-                            subtitle: Column(
+
+              // widgets for members, surveys, ect outside groupname/pin settings
+              if (widget.isInGroup && groupId != null) ...[
+                const SizedBox(height: 24),
+                const Text("Group Members", style: TextStyle(fontWeight: FontWeight.bold)),
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('groups')
+                      .doc(groupId)
+                      .collection('members')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const CircularProgressIndicator();
+                    final docs = snapshot.data!.docs;
+                    return Column(
+                      children: docs.map((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final nickname = data['nickname'] ?? 'Guest';
+                        final status = data['status'] ?? 'unknown';
+                        final isCreator = userId == creatorId;
+                        final isSelf = data['uid'] == userId;
+                        return FutureBuilder<bool>(
+                          future: isSelf ? _isSurveyCompleted() : Future.value(true),
+                          builder: (context, surveySnapshot) {
+                            final surveyDone = surveySnapshot.data ?? false;
+                            return ListTile(
+                              leading: const Icon(Icons.person),
+
+                              // Display nickname and allow editing if it's the user's own entry
+                              title: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      nickname,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (isSelf)
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, size: 18),
+                                      tooltip: 'Edit nickname',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () => _editNickname(doc.id, nickname),
+                                    ),
+                                ],
+                              ),
+
+                              subtitle: Text(
+                                "Survey Status: ${surveyDone ? 'Completed' : 'Incomplete'}",
+                                style: TextStyle(
+                                  color: surveyDone ? Colors.green : Colors.orange,
+                                ),
+                              ),
+                              trailing: isSelf
+                                  ? IconButton(
+                                      icon: Icon(
+                                        surveyDone ? Icons.replay_circle_filled_rounded : Icons.assignment,
+                                      ),
+                                      tooltip: surveyDone ? "Edit Survey" : "Take Survey",
+                                      onPressed: () {
+                                        Navigator.of(context)
+                                            .push(
+                                              MaterialPageRoute(
+                                                builder: (context) => const SurveyFormPage(),
+                                              ),
+                                            )
+                                            .then((_) {
+                                          if (mounted) {
+                                            setState(() {});
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  surveyDone ? 'Survey updated!' : 'Survey completed!',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        });
+                                      },
+                                    )
+                                  : isCreator
+                                      ? PopupMenuButton<String>(
+                                          onSelected: (value) => updateMemberStatus(doc.id, value),
+                                          itemBuilder: (_) => const [
+                                            PopupMenuItem(value: 'invited', child: Text('Invited')),
+                                            PopupMenuItem(value: 'joined', child: Text('Joined')),
+                                            PopupMenuItem(value: 'declined', child: Text('Declined')),
+                                          ],
+                                          icon: const Icon(Icons.edit),
+                                        )
+                                      : null,
+                            );
+                          },
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+                const Text("Survey Status", style: TextStyle(fontWeight: FontWeight.bold)),
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('surveys')
+                      .where('groupId', isEqualTo: groupId)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Text("No survey responses yet.");
+                    }
+                    final docs = snapshot.data!.docs;
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        final status = data['completed'] == true ? 'Completed' : 'Pending';
+                        final activities = data['activities'] as List<dynamic>? ?? [];
+                        final nickname = data['nickname'] ?? 'Guest';
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text("Status: $status"),
-                                Text("Survey: ${surveyDone ? 'Completed' : 'Not Completed'}"),
+                                Text(nickname, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 4),
+                                Text("Status: $status", style: TextStyle(color: status == 'Completed' ? Colors.green : Colors.orange)),
+                                if (activities.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  const Text("Selected Activities:"),
+                                  Wrap(
+                                    spacing: 8,
+                                    children: activities.map((a) => Chip(label: Text(a.toString()))).toList(),
+                                  )
+                                ],
                               ],
                             ),
-                            trailing: isSelf
-                                ? Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: Icon(surveyDone ? Icons.replay_circle_filled_rounded : Icons.edit_document),
-                                        tooltip: surveyDone ? "Edit Survey" : "Take Survey",
-                                          onPressed: () {
-                                            Navigator.of(context)
-                                                .push(
-                                                  MaterialPageRoute(
-                                                    builder: (context) => const SurveyFormPage(),
-                                                  ),
-                                                )
-                                                .then((_) {
-                                              if (mounted) {
-                                                setState(() {});
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                      surveyDone ? 'Survey updated!' : 'Survey completed!',
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                            });
-                                          },
-
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.edit),
-                                        tooltip: 'Edit nickname',
-                                        onPressed: () => _editNickname(doc.id, nickname),
-                                      ),
-                                    ],
-                                  )
-                                : isCreator
-                                    ? PopupMenuButton<String>(
-                                        onSelected: (value) => updateMemberStatus(doc.id, value),
-                                        itemBuilder: (_) => const [
-                                          PopupMenuItem(value: 'invited', child: Text('Invited')),
-                                          PopupMenuItem(value: 'joined', child: Text('Joined')),
-                                          PopupMenuItem(value: 'declined', child: Text('Declined')),
-                                        ],
-                                        icon: const Icon(Icons.edit),
-                                      )
-                                    : null,
-                          );
-                        },
-                      );
-                    }).toList(),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              const Text("Survey Status", style: TextStyle(fontWeight: FontWeight.bold)),
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('surveys').where('groupId', isEqualTo: groupId).snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return const Text("No survey responses yet.");
-                  }
-                  final docs = snapshot.data!.docs;
-                  return ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: docs.length,
-                    itemBuilder: (context, index) {
-                      final data = docs[index].data() as Map<String, dynamic>;
-                      final status = data['completed'] == true ? 'Completed' : 'Pending';
-                      final activities = data['activities'] as List<dynamic>? ?? [];
-                      final nickname = data['nickname'] ?? 'Guest';
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(nickname, style: const TextStyle(fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 4),
-                              Text("Status: $status", style: TextStyle(color: status == 'Completed' ? Colors.green : Colors.orange)),
-                              if (activities.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                const Text("Selected Activities:"),
-                                Wrap(
-                                  spacing: 8,
-                                  children: activities.map((a) => Chip(label: Text(a.toString()))).toList(),
-                                )
-                              ],
-                            ],
                           ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
+
             ],
           ],
         ),

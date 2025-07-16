@@ -15,6 +15,7 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
 
   String? groupId;
   String? userId;
+  String? existingSurveyDocId;
 
   @override
   void initState() {
@@ -24,10 +25,29 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
 
   Future<void> loadSession() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      groupId = prefs.getString('groupId');
-      userId = prefs.getString('userId');
-    });
+    groupId = prefs.getString('groupId');
+    userId = prefs.getString('userId');
+
+    if (groupId != null && userId != null) {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('surveys')
+          .where('groupId', isEqualTo: groupId)
+          .where('userId', isEqualTo: userId)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        final doc = snapshot.docs.first;
+        existingSurveyDocId = doc.id;
+
+        final data = doc.data();
+        final previousActivities = (data['activities'] as List<dynamic>?) ?? [];
+
+        setState(() {
+          selectedActivities.addAll(previousActivities.cast<String>());
+        });
+      }
+    }
   }
 
   Future<void> submitSurvey() async {
@@ -38,20 +58,32 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
       return;
     }
 
-    await FirebaseFirestore.instance.collection('surveys').add({
-      'completed': true,
-      'activities': selectedActivities.toList(),
-      'groupId': groupId,
-      'userId': userId,
-      'timestamp': Timestamp.now(),
-    });
+    if (existingSurveyDocId != null) {
+      // Update existing survey
+      await FirebaseFirestore.instance
+          .collection('surveys')
+          .doc(existingSurveyDocId)
+          .update({
+        'activities': selectedActivities.toList(),
+        'completed': true,
+        'timestamp': Timestamp.now(),
+      });
+    } else {
+      // Create a new survey
+      final newDoc = await FirebaseFirestore.instance.collection('surveys').add({
+        'activities': selectedActivities.toList(),
+        'completed': true,
+        'groupId': groupId,
+        'userId': userId,
+        'timestamp': Timestamp.now(),
+      });
+      existingSurveyDocId = newDoc.id;
+    }
 
-    // Show success message before closing
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Survey submitted!')),
+      const SnackBar(content: Text('Survey saved!')),
     );
 
-    // Close the page cleanly
     Navigator.of(context).pop();
   }
 
@@ -88,7 +120,7 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
             Center(
               child: ElevatedButton(
                 onPressed: submitSurvey,
-                child: const Text("Submit Survey"),
+                child: Text(existingSurveyDocId != null ? "Update Survey" : "Submit Survey"),
               ),
             )
           ],
