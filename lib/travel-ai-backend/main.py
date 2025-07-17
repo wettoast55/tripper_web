@@ -1,89 +1,139 @@
+
+# # Import necessary modules
+# from fastapi import FastAPI, Request
+# from pydantic import BaseModel
+# from openai import OpenAI
+# import os
+
+# # Initialize OpenAI client using API key from env or hardcoded (not recommended for prod)
+# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# # Initialize FastAPI app
+# app = FastAPI()
+
+
+# # Define request body schema
+# class RecommendationRequest(BaseModel):
+#     activities: list[str]
+#     budget: str
+#     month: str
+
+
+# # Define POST endpoint to get travel recommendations using OpenAI
+# @app.post("/recommendations")
+# async def get_recommendations(req: RecommendationRequest):
+
+#     # Build the prompt based on input parameters
+#     user_prompt = (
+#         f"Suggest 3 travel destinations for someone with a {req.budget} budget "
+#         f"interested in the following activities: {', '.join(req.activities)}. "
+#         f"The trip should be in the month of {req.month}. "
+#         f"For each destination, include a name, brief description, estimated flight price, and top attraction."
+#     )
+
+#     # Build the messages for OpenAI Chat API
+#     messages = [
+#         {
+#             "role": "system",
+#             "content": "You are a helpful travel assistant that suggests personalized vacation destinations."
+#         },
+#         {
+#             "role": "user",
+#             "content": user_prompt
+#         }
+#     ]
+
+#     # Call the ChatGPT API to generate a response
+#     try:
+#         completion = client.chat.completions.create(
+#             model="gpt-3.5-turbo",  # Use "gpt-4-turbo" if your key has access
+#             messages=messages,
+#             temperature=0.7
+#         )
+
+#         # Extract the content from the response
+#         result = completion.choices[0].message.content
+
+#         # Return the response wrapped in a dict
+#         return {"recommendations": result}
+
+#     # Catch OpenAI model access errors
+#     except Exception as e:
+#         return {"error": str(e)}
+
+
+# # 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
+# using openrouter instead of open ai above
+
+
+#---------------------------------------------
+
+# Import required modules
 from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import List
-import os
-from dotenv import load_dotenv
-from openai import OpenAI
+import httpx
 
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
+# Initialize FastAPI app
 app = FastAPI()
 
+# Set your OpenRouter API key here (never commit this in production)
+OPENROUTER_API_KEY = "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"
+
+# Define headers required by OpenRouter
+headers = {
+    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+    "Content-Type": "application/json",
+    "HTTP-Referer": "http://localhost:8000",  # required by OpenRouter
+    "X-Title": "TripCliques Travel AI"        # optional, for dashboard tracking
+}
+
+
+# Define the request body schema using Pydantic
 class RecommendationRequest(BaseModel):
-    activities: List[str]
+    activities: list[str]
     budget: str
     month: str
 
+
+# Define the POST endpoint for travel recommendations
 @app.post("/recommendations")
-async def get_recommendations(request: RecommendationRequest):
-    # For now, we will use mock destinations
-    mock_destinations = [
-        {
-            "name": "Bali, Indonesia",
-            "avg_flight": "$600",
-            "hotels": "$80–$120/night",
-            "best_months": "April–June",
-            "activities": ["Beach", "Food Tour", "Hiking"],
-        },
-        {
-            "name": "Lisbon, Portugal",
-            "avg_flight": "$700",
-            "hotels": "$100–$150/night",
-            "best_months": "May–September",
-            "activities": ["Museum", "Food Tour", "Beach"],
-        },
-        {
-            "name": "Kyoto, Japan",
-            "avg_flight": "$900",
-            "hotels": "$120–$200/night",
-            "best_months": "March–April",
-            "activities": ["Museum", "Food Tour"],
-        },
-    ]
+async def get_recommendations(req: RecommendationRequest):
 
-    # Prepare prompt for GPT
-    prompt = f"""
-You are a travel assistant helping a group plan their trip.
-
-Group Preferences:
-- Preferred activities: {", ".join(request.activities)}
-- Budget: {request.budget}
-- Preferred month: {request.month}
-
-Below are some possible destinations:
-
-{mock_destinations}
-
-Please recommend the top 3 destinations, and for each, provide:
-- Name
-- Estimated flight price
-- Hotel price range
-- Best months to visit
-- A short description explaining why it matches the group's preferences.
-
-Respond in JSON array format.
-Each item should be:
-{{
-  "name": "...",
-  "flight": "...",
-  "hotels": "...",
-  "season": "...",
-  "description": "..."
-}}
-"""
-
-    completion = client.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "You are a helpful travel advisor."},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.3,
+    # Build a natural language prompt based on user's travel preferences
+    user_prompt = (
+        f"Suggest 3 travel destinations for someone with a {req.budget} budget "
+        f"interested in: {', '.join(req.activities)}. Month: {req.month}. "
+        f"Include a name, brief description, flight price, and top attraction."
     )
 
-    # Extract GPT response
-    response_text = completion.choices[0].message.content.strip()
+    # Define the full payload expected by OpenRouter's chat completions API
+    data = {
+        "model": "openai/gpt-3.5-turbo",  # you can try others like "mistral", "claude", etc.
+        "messages": [
+            {"role": "system", "content": "You are a helpful travel assistant."},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.7
+    }
 
-    # Return raw GPT text (you can json.loads it if you prefer strict JSON)
-    return {"recommendations": response_text}
+    # Send the request to OpenRouter and await the response
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=data
+            )
+
+        # Raise exception if OpenRouter returns error status
+        response.raise_for_status()
+
+        # Extract the content string from the GPT response
+        result = response.json()["choices"][0]["message"]["content"]
+
+        # Return the recommendation text to the client
+        return {"recommendations": result}
+
+    # Handle any unexpected exceptions and return as error JSON
+    except Exception as e:
+        return {"error": str(e)}
