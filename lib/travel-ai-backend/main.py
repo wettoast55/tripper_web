@@ -68,6 +68,11 @@
 
 #---------------------------------------------
 
+# cleanup groups with no users
+from apscheduler.schedulers.background import BackgroundScheduler
+from firebase_admin import firestore
+import firebase_admin
+
 # Import required modules
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -87,6 +92,27 @@ headers = {
     "X-Title": "TripCliques Travel AI"        # optional, for dashboard tracking
 }
 
+#---------- FOR AUTO GROUPS CLEANUP EVERY 12 HRS
+# Initialize Firebase Admin
+if not firebase_admin._apps:
+    firebase_admin.initialize_app()
+
+db = firestore.client()
+scheduler = BackgroundScheduler()
+
+def delete_empty_groups():
+    groups = db.collection('groups').stream()
+    for group in groups:
+        group_id = group.id
+        members = db.collection('groups').document(group_id).collection('members').get()
+        if not members:
+            print(f"Deleting empty group: {group_id}")
+            db.collection('groups').document(group_id).delete()
+
+# Schedule every 12 hours (adjust as needed)
+scheduler.add_job(delete_empty_groups, 'interval', hours=12)
+scheduler.start()
+#_----------------------------
 
 # Define the request body schema using Pydantic
 class RecommendationRequest(BaseModel):
