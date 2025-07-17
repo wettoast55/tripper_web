@@ -10,12 +10,23 @@ class SurveyFormPage extends StatefulWidget {
 }
 
 class _SurveyFormPageState extends State<SurveyFormPage> {
-  final List<String> allActivities = ['Hiking', 'Museum', 'Beach', 'Food Tour'];
-  final Set<String> selectedActivities = {};
-
   String? groupId;
   String? userId;
   String? existingSurveyDocId;
+
+  final Set<String> selectedActivities = {};
+  final Set<String> selectedTravelMethods = {};
+  final Set<String> selectedAccommodations = {};
+  final Set<String> selectedDestinations = {};
+  final Set<String> selectedInterests = {};
+  final List<String> allActivities = ['Hiking', 'Museum', 'Beach', 'Food Tour'];
+  final List<String> travelMethods = ['Fly', 'Drive', 'Train', 'Boat'];
+  final List<String> accommodations = ['Hotel', 'Airbnb', 'Camping'];
+  final List<String> destinations = ['Continental US', 'International', 'Northeast US', 'Southwest US'];
+  final List<String> interests = ['Outdoors', 'Recreation', 'Nightlife', 'Relaxation', 'History'];
+
+  final TextEditingController budgetController = TextEditingController();
+  DateTimeRange? selectedDateRange;
 
   @override
   void initState() {
@@ -41,11 +52,20 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
         existingSurveyDocId = doc.id;
 
         final data = doc.data();
-        final previousActivities = (data['activities'] as List<dynamic>?) ?? [];
+        selectedActivities.addAll(List<String>.from(data['activities'] ?? []));
+        selectedTravelMethods.addAll(List<String>.from(data['travelMethods'] ?? []));
+        selectedAccommodations.addAll(List<String>.from(data['accommodations'] ?? []));
+        selectedDestinations.addAll(List<String>.from(data['destinations'] ?? []));
+        selectedInterests.addAll(List<String>.from(data['interests'] ?? []));
+        budgetController.text = data['budget'] ?? '';
+        if (data['startDate'] != null && data['endDate'] != null) {
+          selectedDateRange = DateTimeRange(
+            start: (data['startDate'] as Timestamp).toDate(),
+            end: (data['endDate'] as Timestamp).toDate(),
+          );
+        }
 
-        setState(() {
-          selectedActivities.addAll(previousActivities.cast<String>());
-        });
+        setState(() {});
       }
     }
   }
@@ -58,25 +78,25 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
       return;
     }
 
+    final data = {
+      'activities': selectedActivities.toList(),
+      'travelMethods': selectedTravelMethods.toList(),
+      'accommodations': selectedAccommodations.toList(),
+      'destinations': selectedDestinations.toList(),
+      'interests': selectedInterests.toList(),
+      'budget': budgetController.text.trim(),
+      'startDate': selectedDateRange?.start,
+      'endDate': selectedDateRange?.end,
+      'completed': true,
+      'groupId': groupId,
+      'userId': userId,
+      'timestamp': Timestamp.now(),
+    };
+
     if (existingSurveyDocId != null) {
-      // Update existing survey
-      await FirebaseFirestore.instance
-          .collection('surveys')
-          .doc(existingSurveyDocId)
-          .update({
-        'activities': selectedActivities.toList(),
-        'completed': true,
-        'timestamp': Timestamp.now(),
-      });
+      await FirebaseFirestore.instance.collection('surveys').doc(existingSurveyDocId).update(data);
     } else {
-      // Create a new survey
-      final newDoc = await FirebaseFirestore.instance.collection('surveys').add({
-        'activities': selectedActivities.toList(),
-        'completed': true,
-        'groupId': groupId,
-        'userId': userId,
-        'timestamp': Timestamp.now(),
-      });
+      final newDoc = await FirebaseFirestore.instance.collection('surveys').add(data);
       existingSurveyDocId = newDoc.id;
     }
 
@@ -87,42 +107,85 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
     Navigator.of(context).pop();
   }
 
+  Future<void> pickDateRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: now,
+      lastDate: DateTime(now.year + 2),
+      initialDateRange: selectedDateRange,
+    );
+
+    if (picked != null) {
+      setState(() {
+        selectedDateRange = picked;
+      });
+    }
+  }
+
+  Widget buildChips(String label, List<String> options, Set<String> selectedSet) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Wrap(
+          spacing: 8,
+          children: options.map((option) {
+            final isSelected = selectedSet.contains(option);
+            return FilterChip(
+              label: Text(option),
+              selected: isSelected,
+              onSelected: (selected) {
+                setState(() {
+                  if (selected) {
+                    selectedSet.add(option);
+                  } else {
+                    selectedSet.remove(option);
+                  }
+                });
+              },
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Trip Preferences Survey')),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Select Activities", style: TextStyle(fontWeight: FontWeight.bold)),
-            Wrap(
-              spacing: 8,
-              children: allActivities.map((activity) {
-                final isSelected = selectedActivities.contains(activity);
-                return FilterChip(
-                  label: Text(activity),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    setState(() {
-                      if (selected) {
-                        selectedActivities.add(activity);
-                      } else {
-                        selectedActivities.remove(activity);
-                      }
-                    });
-                  },
-                );
-              }).toList(),
+            buildChips("Select Activities", allActivities, selectedActivities),
+            buildChips("Travel Methods", travelMethods, selectedTravelMethods),
+            buildChips("Accommodations", accommodations, selectedAccommodations),
+            buildChips("Destinations", destinations, selectedDestinations),
+            buildChips("Interests", interests, selectedInterests),
+            const Text("Travel Budget", style: TextStyle(fontWeight: FontWeight.bold)),
+            TextField(
+              controller: budgetController,
+              decoration: const InputDecoration(hintText: "e.g., \$500 - \$1000"),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
+            const Text("Date Range", style: TextStyle(fontWeight: FontWeight.bold)),
+            TextButton(
+              onPressed: pickDateRange,
+              child: Text(selectedDateRange == null
+                  ? "Select Date Range"
+                  : "${selectedDateRange!.start.month}/${selectedDateRange!.start.day}/${selectedDateRange!.start.year} - ${selectedDateRange!.end.month}/${selectedDateRange!.end.day}/${selectedDateRange!.end.year}"),
+            ),
+            const SizedBox(height: 24),
             Center(
               child: ElevatedButton(
                 onPressed: submitSurvey,
                 child: Text(existingSurveyDocId != null ? "Update Survey" : "Submit Survey"),
               ),
-            )
+            ),
           ],
         ),
       ),

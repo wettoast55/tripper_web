@@ -483,8 +483,20 @@ class _MyGroupPageState extends State<MyGroupPage> {
                       itemBuilder: (context, index) {
                         final data = docs[index].data() as Map<String, dynamic>;
                         final status = data['completed'] == true ? 'Completed' : 'Pending';
-                        final activities = data['activities'] as List<dynamic>? ?? [];
+
+                        // list of survey answers below each user
+                        final budget = data['budget'] ?? 'N/A';
+                        final startDate = (data['startDate'] as Timestamp?)?.toDate();
+                        final endDate = (data['endDate'] as Timestamp?)?.toDate();
+                        final travelMethods = List<String>.from(data['travelMethods'] ?? []);
+                        final accommodations = List<String>.from(data['accommodations'] ?? []);
+                        final destinations = List<String>.from(data['destinations'] ?? []);
+                        final interests = List<String>.from(data['interests'] ?? []);
+                        final activities = List<String>.from(data['activities'] ?? []);
+
                         final nickname = data['nickname'] ?? 'Guest';
+
+                        // FORMATTING FOR SAID LIST OF ACTIVITIES
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 8.0),
                           child: Padding(
@@ -494,19 +506,48 @@ class _MyGroupPageState extends State<MyGroupPage> {
                               children: [
                                 Text(nickname, style: const TextStyle(fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 4),
-                                Text("Status: $status", style: TextStyle(color: status == 'Completed' ? Colors.green : Colors.orange)),
+                                Text("Status: ${data['completed'] == true ? 'Completed' : 'Pending'}",
+                                    style: TextStyle(color: data['completed'] == true ? Colors.green : Colors.orange)),
+
+                                const SizedBox(height: 8),
+                                Text("Budget: $budget"),
+                                if (startDate != null && endDate != null)
+                                  Text("Dates: ${startDate.month}/${startDate.day}/${startDate.year} - ${endDate.month}/${endDate.day}/${endDate.year}"),
+
+                                if (travelMethods.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  const Text("Travel Methods:"),
+                                  Wrap(spacing: 8, children: travelMethods.map((m) => Chip(label: Text(m))).toList()),
+                                ],
+
+                                if (accommodations.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  const Text("Accommodations:"),
+                                  Wrap(spacing: 8, children: accommodations.map((a) => Chip(label: Text(a))).toList()),
+                                ],
+
+                                if (destinations.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  const Text("Destinations:"),
+                                  Wrap(spacing: 8, children: destinations.map((d) => Chip(label: Text(d))).toList()),
+                                ],
+
+                                if (interests.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  const Text("Interests:"),
+                                  Wrap(spacing: 8, children: interests.map((i) => Chip(label: Text(i))).toList()),
+                                ],
+
                                 if (activities.isNotEmpty) ...[
                                   const SizedBox(height: 8),
                                   const Text("Selected Activities:"),
-                                  Wrap(
-                                    spacing: 8,
-                                    children: activities.map((a) => Chip(label: Text(a.toString()))).toList(),
-                                  )
+                                  Wrap(spacing: 8, children: activities.map((a) => Chip(label: Text(a))).toList()),
                                 ],
                               ],
                             ),
                           ),
                         );
+
                       },
                     );
                   },
