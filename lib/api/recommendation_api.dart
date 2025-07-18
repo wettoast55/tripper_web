@@ -2,32 +2,27 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class RecommendationApi {
-  static Future<String> fetchRecommendations({
+  static Future<Map<String, dynamic>> fetchRecommendations({
     required List<String> activities,
     required String budget,
     required String month,
   }) async {
-    const url = 'http://localhost:8000/recommendations'; // Change if deployed
+    final url = Uri.parse('http://localhost:8000/recommendations');
 
-    final body = jsonEncode({
-      'activities': activities,
-      'budget': budget,
-      'month': month,
-    });
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        "activities": activities,
+        "budget": budget,
+        "month": month,
+      }),
+    );
 
-    final headers = {'Content-Type': 'application/json'};
-
-    try {
-      final response = await http.post(Uri.parse(url), headers: headers, body: body);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['recommendations'] ?? 'No recommendations found.';
-      } else {
-        return 'Server error: ${response.statusCode}';
-      }
-    } catch (e) {
-      return 'Request failed: $e';
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body); // ✅ decode once here
+    } else {
+      throw Exception("Failed to get recommendations: ${response.body}");
     }
   }
 }

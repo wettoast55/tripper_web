@@ -188,12 +188,49 @@ class _MyHomePageState extends State<MyHomePage> {
       body: SizedBox.expand(child: _pages[_selectedIndex]),
       floatingActionButton: _selectedIndex == 2 && groupId != null
           ? FloatingActionButton(
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => const SurveyFormPage(),
-                );
+              onPressed: () async {
+                final prefs = await SharedPreferences.getInstance();
+                final userId = FirebaseAuth.instance.currentUser?.uid;
+                final groupId = prefs.getString('groupId');
+
+                if (userId != null && groupId != null) {
+                  final snapshot = await FirebaseFirestore.instance
+                      .collection('surveys')
+                      .where('userId', isEqualTo: userId)
+                      .where('groupId', isEqualTo: groupId)
+                      .orderBy('timestamp', descending: true)
+                      .limit(1)
+                      .get();
+
+                  if (snapshot.docs.isNotEmpty) {
+                    // ✅ Navigate to FindTripsPage
+                    if (context.mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const FindTripsPage()),
+                      );
+                    }
+                  } else {
+                    // ❌ No survey found
+                    if (context.mounted) {
+                      showDialog(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const Text("Survey Needed"),
+                          content: const Text("Please take the survey before searching for trips."),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text("OK"),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                  }
+                }
               },
+
               tooltip: 'Open Survey',
               child: const Icon(Icons.send_and_archive_rounded),
             )
