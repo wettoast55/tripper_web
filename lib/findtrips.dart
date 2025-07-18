@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tripper_web/api/recommendation_api.dart';
+import 'package:tripper_web/cheapest_flights_page.dart';
+
 
 class FindTripsPage extends StatefulWidget {
   const FindTripsPage({super.key});
@@ -38,62 +40,91 @@ class _FindTripsPageState extends State<FindTripsPage> {
     loadSurveyPreferences();
   }
 
-Future<void> loadSurveyPreferences() async {
-  final prefs = await SharedPreferences.getInstance();
-  final userId = prefs.getString('userId');
-  final groupId = prefs.getString('groupId');
+  Future<void> loadSurveyPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId');
+    final groupId = prefs.getString('groupId');
 
-  if (userId != null && groupId != null) {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('surveys')
-        .where('userId', isEqualTo: userId)
-        .where('groupId', isEqualTo: groupId)
-        .where('completed', isEqualTo: true) // ✅ Only completed surveys
-        .orderBy('timestamp', descending: true)
-        .limit(1)
-        .get();
+    if (userId != null && groupId != null) {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('surveys')
+          .where('userId', isEqualTo: userId)
+          .where('groupId', isEqualTo: groupId)
+          .where('completed', isEqualTo: true)
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
 
+      if (!mounted) return;
+
+      if (snapshot.docs.isNotEmpty) {
+        final data = snapshot.docs.first.data();
+
+        final surveyMonth = data['startDate'] != null
+            ? _getMonthFromDate(data['startDate'])
+            : "Any";
+
+        setState(() {
+          userActivities = List<String>.from(data['activities'] ?? []);
+          travelMethods = List<String>.from(data['travelMethods'] ?? []);
+          accommodations = List<String>.from(data['accommodations'] ?? []);
+          destinations = List<String>.from(data['destinations'] ?? []);
+          interests = List<String>.from(data['interests'] ?? []);
+          startDate = (data['startDate'] as Timestamp?)?.toDate();
+          endDate = (data['endDate'] as Timestamp?)?.toDate();
+
+          final budget = data['budget'] ?? "Any";
+          selectedPrice = priceOptions.contains(budget) ? budget : "Any";
+          selectedMonth = monthOptions.contains(surveyMonth) ? surveyMonth : "Any";
+
+          isLoadingSurvey = false;
+        });
+        return;
+      }
+    }
 
     if (!mounted) return;
-
-    if (snapshot.docs.isNotEmpty) {
-      final data = snapshot.docs.first.data();
-
-      final surveyMonth = data['startDate'] != null
-          ? _getMonthFromDate(data['startDate'])
-          : "Any";
-
-      setState(() {
-        userActivities = List<String>.from(data['activities'] ?? []);
-        travelMethods = List<String>.from(data['travelMethods'] ?? []);
-        accommodations = List<String>.from(data['accommodations'] ?? []);
-        destinations = List<String>.from(data['destinations'] ?? []);
-        interests = List<String>.from(data['interests'] ?? []);
-        startDate = (data['startDate'] as Timestamp?)?.toDate();
-        endDate = (data['endDate'] as Timestamp?)?.toDate();
-
-        // Set dropdowns only if value is valid
-        final budget = data['budget'] ?? "Any";
-        selectedPrice = priceOptions.contains(budget) ? budget : "Any";
-        selectedMonth = monthOptions.contains(surveyMonth) ? surveyMonth : "Any";
-
-        isLoadingSurvey = false;
-      });
-      return;
-    }
+    setState(() {
+      isLoadingSurvey = false;
+    });
   }
-
-  if (!mounted) return;
-  setState(() {
-    isLoadingSurvey = false;
-  });
-}
-
 
   String _getMonthFromDate(dynamic timestamp) {
     if (timestamp == null) return "Any";
     final date = (timestamp as Timestamp).toDate();
     return monthOptions[date.month];
+  }
+
+  Future<(DateTime?, DateTime?)> getGroupDateRange() async {
+    final prefs = await SharedPreferences.getInstance();
+    final groupId = prefs.getString('groupId');
+
+    if (groupId == null) return (null, null);
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('surveys')
+        .where('groupId', isEqualTo: groupId)
+        .where('completed', isEqualTo: true)
+        .get();
+
+    if (snapshot.docs.isEmpty) return (null, null);
+
+    DateTime? earliest;
+    DateTime? latest;
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      final start = (data['startDate'] as Timestamp?)?.toDate();
+      final end = (data['endDate'] as Timestamp?)?.toDate();
+      if (start != null && (earliest == null || start.isBefore(earliest))) {
+        earliest = start;
+      }
+      if (end != null && (latest == null || end.isAfter(latest))) {
+        latest = end;
+      }
+    }
+
+    return (earliest, latest);
   }
 
   @override
@@ -158,7 +189,6 @@ Future<void> loadSurveyPreferences() async {
                     ],
                   ),
                   const SizedBox(height: 16),
-
                   ElevatedButton(
                     onPressed: () async {
                       setState(() {
@@ -178,7 +208,7 @@ Future<void> loadSurveyPreferences() async {
                           endDate: endDate,
                         );
 
-                        final List<dynamic> decoded = response['recommendations'] ?? []; //for null crash
+                        final List<dynamic> decoded = response['recommendations'] ?? [];
                         if (!mounted) return;
 
                         setState(() {
@@ -206,9 +236,7 @@ Future<void> loadSurveyPreferences() async {
                     },
                     child: const Text("Find Trips with AI"),
                   ),
-
                   const SizedBox(height: 16),
-
                   if (isLoadingAi)
                     const CircularProgressIndicator()
                   else if (aiDestinations.isNotEmpty)
@@ -223,6 +251,21 @@ Future<void> loadSurveyPreferences() async {
                               title: Text(dest["name"] ?? ""),
                               subtitle: Text(dest["description"] ?? ""),
                               trailing: Text(dest["price"] ?? ""),
+                              onTap: () async {
+                                final (groupStart, groupEnd) = await getGroupDateRange();
+                                if (!mounted) return;
+
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => CheapestFlightsPage(
+                                      destination: dest["name"] ?? "",
+                                      startDate: groupStart,
+                                      endDate: groupEnd,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           );
                         },
