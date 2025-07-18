@@ -358,10 +358,6 @@ class _MyGroupPageState extends State<MyGroupPage> {
                   )
                 ],
               ),
-            if (widget.isInGroup && groupId != null) ...[
-              const SizedBox(height: 24),
-              const Text("Group Members", style: TextStyle(fontWeight: FontWeight.bold)),
-
               // widgets for members, surveys, ect outside groupname/pin settings
               if (widget.isInGroup && groupId != null) ...[
                 const SizedBox(height: 24),
@@ -555,7 +551,6 @@ class _MyGroupPageState extends State<MyGroupPage> {
               ],
 
             ],
-          ],
         ),
       ),
     );

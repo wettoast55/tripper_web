@@ -9,6 +9,7 @@ import 'firebase_options.dart';
 import 'package:tripper_web/mygroup.dart';
 import 'package:tripper_web/surveypage.dart';
 import 'package:tripper_web/findtrips.dart';
+import 'package:tripper_web/api/recommendation_api.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +38,10 @@ Future<void> _ensureLoggedIn() async {
   final prefs = await SharedPreferences.getInstance();
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid != null) {
+    await prefs.setString('userId', uid); // ← Add this line
+  }  
+
+  if (uid != null) {
     final groups = await FirebaseFirestore.instance.collection('groups').get();
     for (final group in groups.docs) {
       final memberSnapshot = await group.reference
@@ -56,6 +61,14 @@ Future<void> _ensureLoggedIn() async {
       }
     }
   }
+}
+
+String monthName(int month) {
+  const months = [
+    "", "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  return months[month];
 }
 
 class MyApp extends StatelessWidget {
@@ -205,12 +218,64 @@ class _MyHomePageState extends State<MyHomePage> {
 
                   if (snapshot.docs.isNotEmpty) {
                     // ✅ Navigate to FindTripsPage
+                    final data = snapshot.docs.first.data();
+
+                    final month = data['startDate'] != null
+                        ? DateTime.fromMillisecondsSinceEpoch(data['startDate'].millisecondsSinceEpoch).month
+                        : null;
+
+                    final response = await RecommendationApi.fetchRecommendations(
+                      activities: List<String>.from(data['activities'] ?? []),
+                      budget: data['budget'] ?? "Any",
+                      month: month != null ? monthName(month) : "Any",
+                      travelMethods: List<String>.from(data['travelMethods'] ?? []),
+                      accommodations: List<String>.from(data['accommodations'] ?? []),
+                      destinations: List<String>.from(data['destinations'] ?? []),
+                      interests: List<String>.from(data['interests'] ?? []),
+                      startDate: (data['startDate'] as Timestamp?)?.toDate(),
+                      endDate: (data['endDate'] as Timestamp?)?.toDate(),
+                    );
+
+                    // Show a dialog or navigate to a new screen with results
                     if (context.mounted) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const FindTripsPage()),
+                      showDialog(
+                        context: context,
+                        builder: (_) {
+                          final recommendations = response['recommendations'] ?? [];
+                          return AlertDialog(
+                            title: const Text("Trip Suggestions"),
+                            content: SizedBox(
+                              width: double.maxFinite,
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: recommendations.length,
+                                itemBuilder: (_, i) {
+                                  final dest = recommendations[i];
+                                  return ListTile(
+                                    title: Text(dest['name'] ?? ''),
+                                    subtitle: Text(dest['description'] ?? ''),
+                                    trailing: Text(dest['price'] ?? ''),
+                                  );
+                                },
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: const Text("Close"),
+                              )
+                            ],
+                          );
+                        },
                       );
-                    }
+                    };
+
+                    // if (context.mounted) {
+                    //   Navigator.push(
+                    //     context,
+                    //     MaterialPageRoute(builder: (_) => const FindTripsPage()),
+                    //   );
+                    
                   } else {
                     // ❌ No survey found
                     if (context.mounted) {

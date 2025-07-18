@@ -178,7 +178,7 @@ Future<void> loadSurveyPreferences() async {
                           endDate: endDate,
                         );
 
-                        final List<dynamic> decoded = response['recommendations'];
+                        final List<dynamic> decoded = response['recommendations'] ?? []; //for null crash
                         if (!mounted) return;
 
                         setState(() {

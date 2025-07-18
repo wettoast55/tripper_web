@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SurveyFormPage extends StatefulWidget {
   const SurveyFormPage({super.key});
@@ -37,7 +38,8 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
   Future<void> loadSession() async {
     final prefs = await SharedPreferences.getInstance();
     groupId = prefs.getString('groupId');
-    userId = prefs.getString('userId');
+    //userId = prefs.getString('userId');
+    userId = FirebaseAuth.instance.currentUser?.uid;
 
     if (groupId != null && userId != null) {
       final snapshot = await FirebaseFirestore.instance
@@ -86,7 +88,7 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
       'interests': selectedInterests.toList(),
       'budget': budgetController.text.trim(),
 
-      // dates might not be stored as normal in firestore
+      // dates might not be stored as normal in fires
       'startDate': selectedDateRange != null ? Timestamp.fromDate(selectedDateRange!.start) : null,
       'endDate': selectedDateRange != null ? Timestamp.fromDate(selectedDateRange!.end) : null,
 
