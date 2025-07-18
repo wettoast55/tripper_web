@@ -1,36 +1,5 @@
 import 'package:flutter/material.dart';
-
-// You can later move this to a separate file or Firestore
-const sampleDestinations = [
-  {
-    "name": "Bali, Indonesia",
-    "bestMonths": ["April", "May", "June", "September"],
-    "price": "Medium",
-    "activities": ["Beach", "Food Tour", "Hiking"],
-    "description": "A tropical paradise known for beaches and temples."
-  },
-  {
-    "name": "Kyoto, Japan",
-    "bestMonths": ["March", "April", "October"],
-    "price": "High",
-    "activities": ["Museum", "Food Tour"],
-    "description": "Historic city famous for shrines and cherry blossoms."
-  },
-  {
-    "name": "Lisbon, Portugal",
-    "bestMonths": ["May", "June", "September"],
-    "price": "Budget",
-    "activities": ["Food Tour", "Museum", "Beach"],
-    "description": "A charming city with coastal views and rich history."
-  },
-  {
-    "name": "Reykjavik, Iceland",
-    "bestMonths": ["June", "July", "August"],
-    "price": "High",
-    "activities": ["Hiking", "Museum"],
-    "description": "Explore glaciers, volcanoes, and unique landscapes."
-  },
-];
+import 'package:tripper_web/api/recommendation_api.dart';
 
 class FindTripsPage extends StatefulWidget {
   const FindTripsPage({super.key});
@@ -61,11 +30,13 @@ class _FindTripsPageState extends State<FindTripsPage> {
     "December",
   ];
 
+  // List to hold dynamic results from AI
+  List<Map<String, String>> aiDestinations = [];
+
   @override
   Widget build(BuildContext context) {
-    final filteredDestinations = sampleDestinations.where((destination) {
-      final nameMatch = destination["name"]
-          .toString()
+    final filteredDestinations = aiDestinations.where((destination) {
+      final nameMatch = destination["name"]!
           .toLowerCase()
           .contains(searchQuery.toLowerCase());
 
@@ -73,7 +44,7 @@ class _FindTripsPageState extends State<FindTripsPage> {
           destination["price"] == selectedPrice;
 
       final monthMatch = selectedMonth == "Any" ||
-          (destination["bestMonths"] as List).contains(selectedMonth);
+          destination["bestMonths"]?.contains(selectedMonth) == true;
 
       return nameMatch && priceMatch && monthMatch;
     }).toList();
@@ -99,15 +70,14 @@ class _FindTripsPageState extends State<FindTripsPage> {
               },
             ),
             const SizedBox(height: 12),
+
             // Filters
             Row(
               children: [
-                // Price filter
+                // Price filter dropdown
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(
-                      labelText: "Price",
-                    ),
+                    decoration: const InputDecoration(labelText: "Price"),
                     value: selectedPrice,
                     items: priceOptions
                         .map((price) => DropdownMenuItem(
@@ -123,12 +93,10 @@ class _FindTripsPageState extends State<FindTripsPage> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Month filter
+                // Month filter dropdown
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(
-                      labelText: "Best Month",
-                    ),
+                    decoration: const InputDecoration(labelText: "Best Month"),
                     value: selectedMonth,
                     items: monthOptions
                         .map((month) => DropdownMenuItem(
@@ -146,10 +114,50 @@ class _FindTripsPageState extends State<FindTripsPage> {
               ],
             ),
             const SizedBox(height: 16),
-            // Results
+
+            // Find Trips with AI Button
+            ElevatedButton(
+              onPressed: () async {
+                final result = await RecommendationApi.fetchRecommendations(
+                  activities: ["Beach", "Museum"], // Replace with real user prefs later
+                  budget: selectedPrice,
+                  month: selectedMonth,
+                );
+
+                // Parse GPT string response into structured format
+                final List<Map<String, String>> parsed = [];
+                final lines = result.split('\n');
+                for (var line in lines) {
+                  if (line.trim().isEmpty) continue;
+
+                  final nameMatch = RegExp(r'^\d+\.\s*(.*?)(?= -|:|\n|\r|\$)').firstMatch(line);
+                  final descMatch = RegExp(r'Description[:\-]?\s*(.*?)(?=Flight|\\$)').firstMatch(line);
+                  final priceMatch = RegExp(r'Flight Price[:\-]?\s*(.*?)(?=Top Attraction|\\$)').firstMatch(line);
+                  final attractionMatch = RegExp(r'Top Attraction[:\-]?\s*(.*)').firstMatch(line);
+
+                  if (nameMatch != null) {
+                    parsed.add({
+                      "name": nameMatch.group(1)?.trim() ?? "Unknown",
+                      "description": descMatch?.group(1)?.trim() ?? "",
+                      "price": priceMatch?.group(1)?.trim() ?? "",
+                      "attraction": attractionMatch?.group(1)?.trim() ?? "",
+                    });
+                  }
+                }
+
+                setState(() {
+                  aiDestinations = parsed;
+                });
+              },
+              child: const Text("Find Trips with AI"),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Trip Result List
             Expanded(
-              child: filteredDestinations.isEmpty
-                  ? const Center(child: Text("No destinations match your filters."))
+              child: aiDestinations.isEmpty
+                  ? const Center(child: Text("No destinations yet. Try 'Find Trips with AI'."))
                   : ListView.builder(
                       itemCount: filteredDestinations.length,
                       itemBuilder: (context, index) {
@@ -157,9 +165,9 @@ class _FindTripsPageState extends State<FindTripsPage> {
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 8),
                           child: ListTile(
-                            title: Text(dest["name"] as String),
-                            subtitle: Text(dest["description"] as String),
-                            trailing: Text(dest["price"] as String),
+                            title: Text(dest["name"] ?? "Unknown"),
+                            subtitle: Text(dest["description"] ?? ""),
+                            trailing: Text(dest["price"] ?? ""),
                           ),
                         );
                       },
