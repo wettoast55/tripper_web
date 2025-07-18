@@ -198,6 +198,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       .collection('surveys')
                       .where('userId', isEqualTo: userId)
                       .where('groupId', isEqualTo: groupId)
+                      .where('completed', isEqualTo: true)
                       .orderBy('timestamp', descending: true)
                       .limit(1)
                       .get();
@@ -231,7 +232,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 }
               },
 
-              tooltip: 'Open Survey',
+              tooltip: 'Find a group trip',
               child: const Icon(Icons.send_and_archive_rounded),
             )
           : null,

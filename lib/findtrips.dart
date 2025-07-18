@@ -1,4 +1,4 @@
-import 'dart:convert'; // Needed for jsonDecode
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -16,25 +16,20 @@ class _FindTripsPageState extends State<FindTripsPage> {
   String selectedPrice = "Any";
   String selectedMonth = "Any";
   List<String> userActivities = [];
+  List<String> travelMethods = [];
+  List<String> accommodations = [];
+  List<String> destinations = [];
+  List<String> interests = [];
+  DateTime? startDate;
+  DateTime? endDate;
   bool isLoadingSurvey = true;
   bool isLoadingAi = false;
   List<Map<String, dynamic>> aiDestinations = [];
 
   final List<String> priceOptions = ["Any", "Budget", "Medium", "High"];
   final List<String> monthOptions = [
-    "Any",
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
+    "Any", "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
   ];
 
   @override
@@ -43,36 +38,62 @@ class _FindTripsPageState extends State<FindTripsPage> {
     loadSurveyPreferences();
   }
 
-  Future<void> loadSurveyPreferences() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString('userId');
-    final groupId = prefs.getString('groupId');
+Future<void> loadSurveyPreferences() async {
+  final prefs = await SharedPreferences.getInstance();
+  final userId = prefs.getString('userId');
+  final groupId = prefs.getString('groupId');
 
-    if (userId != null && groupId != null) {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('surveys')
-          .where('userId', isEqualTo: userId)
-          .where('groupId', isEqualTo: groupId)
-          .orderBy('timestamp', descending: true)
-          .limit(1)
-          .get();
+  if (userId != null && groupId != null) {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('surveys')
+        .where('userId', isEqualTo: userId)
+        .where('groupId', isEqualTo: groupId)
+        .where('completed', isEqualTo: true) // ✅ Only completed surveys
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .get();
 
-      if (snapshot.docs.isNotEmpty) {
-        final data = snapshot.docs.first.data();
 
-        setState(() {
-          userActivities = List<String>.from(data['activities'] ?? []);
-          selectedPrice = data['budget'] ?? "Any";
-          selectedMonth = data['month'] ?? "Any";
-          isLoadingSurvey = false;
-        });
-        return;
-      }
+    if (!mounted) return;
+
+    if (snapshot.docs.isNotEmpty) {
+      final data = snapshot.docs.first.data();
+
+      final surveyMonth = data['startDate'] != null
+          ? _getMonthFromDate(data['startDate'])
+          : "Any";
+
+      setState(() {
+        userActivities = List<String>.from(data['activities'] ?? []);
+        travelMethods = List<String>.from(data['travelMethods'] ?? []);
+        accommodations = List<String>.from(data['accommodations'] ?? []);
+        destinations = List<String>.from(data['destinations'] ?? []);
+        interests = List<String>.from(data['interests'] ?? []);
+        startDate = (data['startDate'] as Timestamp?)?.toDate();
+        endDate = (data['endDate'] as Timestamp?)?.toDate();
+
+        // Set dropdowns only if value is valid
+        final budget = data['budget'] ?? "Any";
+        selectedPrice = priceOptions.contains(budget) ? budget : "Any";
+        selectedMonth = monthOptions.contains(surveyMonth) ? surveyMonth : "Any";
+
+        isLoadingSurvey = false;
+      });
+      return;
     }
+  }
 
-    setState(() {
-      isLoadingSurvey = false;
-    });
+  if (!mounted) return;
+  setState(() {
+    isLoadingSurvey = false;
+  });
+}
+
+
+  String _getMonthFromDate(dynamic timestamp) {
+    if (timestamp == null) return "Any";
+    final date = (timestamp as Timestamp).toDate();
+    return monthOptions[date.month];
   }
 
   @override
@@ -85,7 +106,6 @@ class _FindTripsPageState extends State<FindTripsPage> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // Search Field
                   TextField(
                     decoration: const InputDecoration(
                       labelText: "Search destinations",
@@ -98,8 +118,6 @@ class _FindTripsPageState extends State<FindTripsPage> {
                     },
                   ),
                   const SizedBox(height: 12),
-
-                  // Filters
                   Row(
                     children: [
                       Expanded(
@@ -141,7 +159,6 @@ class _FindTripsPageState extends State<FindTripsPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // AI Button
                   ElevatedButton(
                     onPressed: () async {
                       setState(() {
@@ -150,13 +167,17 @@ class _FindTripsPageState extends State<FindTripsPage> {
 
                       try {
                         final response = await RecommendationApi.fetchRecommendations(
-
                           activities: userActivities,
                           budget: selectedPrice,
                           month: selectedMonth,
+                          travelMethods: travelMethods,
+                          accommodations: accommodations,
+                          destinations: destinations,
+                          interests: interests,
+                          startDate: startDate,
+                          endDate: endDate,
                         );
 
-                        // Result is already a JSON string, so parse it
                         final List<dynamic> decoded = response['recommendations'];
                         if (!mounted) return;
 
