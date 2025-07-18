@@ -94,7 +94,11 @@ class _SurveyFormPageState extends State<SurveyFormPage> {
 
       'completed': true,
       'groupId': groupId,
-      'userId': userId,
+
+      'userName': FirebaseAuth.instance.currentUser?.displayName ?? 'Guest',
+       // Use FirebaseAuth to get the current user's name instead of defaulting to guestr
+      // 'userId': userId,
+      
       'timestamp': Timestamp.now(),
     };
 
